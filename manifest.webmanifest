@@ -1,0 +1,22 @@
+{
+  "id": "./",
+  "name": "RF Toolbox – RF Engineering Calculators",
+  "short_name": "RF Toolbox",
+  "description": "Link budget, cascade NF/IP3, dish gain, antennas, VSWR, coax loss, noise, propagation, pads and microstrip calculators. Works offline.",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "categories": ["utilities", "productivity", "education"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Link budget", "url": "./#/link", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Cascade analysis", "url": "./#/cascade", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
