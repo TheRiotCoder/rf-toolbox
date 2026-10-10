@@ -1,9 +1,12 @@
-/* RF Toolbox service worker – offline app shell */
-const VERSION = "rftoolbox-v1.0.0";
+/* RF Toolbox service worker – offline app shell.
+   VERSION is the single version string for the app (the About page reads it from the cache name). Bump it on every release. */
+const VERSION = "rftoolbox-v1.1.0";
 const SHELL = [
   "./", "index.html", "manifest.webmanifest", "css/style.css", "js/rf.js", "js/tools.js", "js/app.js",
   "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png", "icons/apple-touch-icon.png", "icons/favicon-32.png"
 ];
+const NAV_TIMEOUT_MS = 3500; // on slow "lie-fi" connections fall back to the cached shell after this long
+
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: "reload" })))));
   if (!self.registration.active) self.skipWaiting(); // first install takes over immediately; updates wait for the user
@@ -14,16 +17,45 @@ self.addEventListener("activate", (event) => {
     .then(() => self.clients.claim()));
 });
 self.addEventListener("message", (event) => { if (event.data === "skipWaiting") self.skipWaiting(); });
+
+// Only the active worker refreshes the cache, so a waiting (newer) worker's cache isn't mixed with old files and vice versa.
+function isActiveWorker() { return self.registration.active === self.serviceWorker || !self.serviceWorker; }
+function cachedShell() { return caches.match("index.html").then((r) => r || caches.match("./")); }
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET" || new URL(req.url).origin !== self.location.origin) return;
-  if (req.mode === "navigate") { // network first, cached shell offline
-    event.respondWith(fetch(req).then((res) => { if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put("index.html", copy)); } return res; })
-      .catch(() => caches.match("index.html").then((r) => r || caches.match("./"))));
+
+  if (req.mode === "navigate") { // network first with timeout, cached shell offline
+    let settle;
+    const refresh = new Promise((r) => { settle = r; });
+    const network = fetch(req).then((res) => {
+      if (res && res.ok && isActiveWorker()) {
+        const copy = res.clone();
+        caches.open(VERSION).then((c) => c.put("index.html", copy)).then(settle, settle);
+      } else settle();
+      return res;
+    }, (err) => { settle(); throw err; });
+    event.waitUntil(refresh);
+    event.respondWith(new Promise((resolve) => {
+      let done = false;
+      const finish = (r) => { if (!done && r) { done = true; resolve(r); } };
+      const timer = setTimeout(() => cachedShell().then(finish), NAV_TIMEOUT_MS);
+      network.then((res) => { clearTimeout(timer); finish(res); },
+        () => { clearTimeout(timer); cachedShell().then((r) => { if (r) finish(r); else { done = true; resolve(Response.error()); } }); });
+    }));
     return;
   }
-  event.respondWith(caches.match(req, { ignoreSearch: true }).then((cached) => {
-    const net = fetch(req).then((res) => { if (res && res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); } return res; }).catch(() => cached);
-    return cached || net;
-  }));
+
+  // static assets: cache first, refresh in the background (kept alive with waitUntil)
+  const cachedP = caches.match(req, { ignoreSearch: true });
+  const net = fetch(req).then((res) => {
+    if (res && res.ok && isActiveWorker()) {
+      const copy = res.clone();
+      return caches.open(VERSION).then((c) => c.put(req, copy)).then(() => res);
+    }
+    return res;
+  });
+  event.waitUntil(net.then(() => {}, () => {}));
+  event.respondWith(cachedP.then((cached) => cached || net.catch(() => cached || Response.error())));
 });

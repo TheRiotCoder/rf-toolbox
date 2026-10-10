@@ -17,22 +17,22 @@
       inputs: [
         { h: "Transmitter" },
         { id: "tx", label: "Tx power", unit: PWR, def: 30, defUnit: "dBm" },
-        { id: "txl", label: "Tx cable + connector loss", u: "dB", def: 1 },
+        { id: "txl", label: "Tx cable + connector loss", u: "dB", def: 1, min: 0 },
         { id: "txg", label: "Tx antenna gain", u: "dBi", def: 15 },
         { h: "Path" },
         { id: "f", label: "Frequency", unit: FREQ, def: 2.4, defUnit: "GHz" },
         { id: "d", label: "Distance", unit: DIST, def: 10, defUnit: "km" },
-        { id: "atm", label: "Atmospheric loss", u: "dB", def: 0 },
-        { id: "rain", label: "Rain loss", u: "dB", def: 0 },
-        { id: "fade", label: "Fade allowance", u: "dB", def: 0 },
-        { id: "misc", label: "Misc / obstruction loss", u: "dB", def: 0 },
+        { id: "atm", label: "Atmospheric loss", u: "dB", def: 0, min: 0 },
+        { id: "rain", label: "Rain loss", u: "dB", def: 0, min: 0 },
+        { id: "fade", label: "Fade allowance", u: "dB", def: 0, min: 0 },
+        { id: "misc", label: "Misc / obstruction loss", u: "dB", def: 0, min: 0 },
         { h: "Receiver" },
         { id: "rxg", label: "Rx antenna gain", u: "dBi", def: 15 },
-        { id: "rxl", label: "Rx cable + connector loss", u: "dB", def: 1 },
+        { id: "rxl", label: "Rx cable + connector loss", u: "dB", def: 1, min: 0 },
         { id: "mode", label: "Rx sensitivity", type: "select", def: "calc", options: [["calc", "Compute from noise floor"], ["enter", "Enter sensitivity"]] },
         { id: "sens", label: "Rx sensitivity", u: "dBm", def: -90, show: function (v) { return v.mode === "enter"; } },
         { id: "bw", label: "Noise bandwidth", unit: BW, def: 20, defUnit: "MHz" },
-        { id: "nf", label: "Rx noise figure", u: "dB", def: 5 },
+        { id: "nf", label: "Rx noise figure", u: "dB", def: 5, min: 0 },
         { id: "snr", label: "Required SNR", u: "dB", def: 10, show: function (v) { return v.mode === "calc"; } }
       ],
       compute: function (v) {
@@ -56,7 +56,7 @@
   },
   /* 2 ------------------------------------------------------------------ */
   { id: "cascade", icon: "🔗", title: "Cascade Analysis", sub: "Friis NF, IP3, P1dB, SFDR", custom: "cascade",
-    notes: "<p><b>Noise (Friis):</b> F = F₁ + (F₂−1)/G₁ + (F₃−1)/(G₁G₂) + … (linear). T<sub>e</sub> = 290·(F−1). A passive/lossy stage has NF = its loss (tick “Passive”).</p><p><b>IP3:</b> 1/IIP3 = 1/IIP3₁ + G₁/IIP3₂ + G₁G₂/IIP3₃ + … (mW). OIP3 = IIP3 + G<sub>total</sub>. Blank IP3 = ideal (ignored). Enter either OIP3 or IIP3 per stage.</p><p><b>P1dB:</b> stage input P1dB ≈ OP1dB − G + 1; cascaded the same way as IP3 (an estimate – compression doesn’t combine exactly like IP3).</p><p><b>Noise floor</b> = −174 + 10·log₁₀(B) + NF (input-referred). <b>MDS</b> = noise floor + required SNR. <b>SFDR</b> = ⅔·(IIP3 − noise floor).</p><p>Contribution columns show each stage’s share of the total excess noise (F−1) and of 1/IIP3 – the biggest number is the stage to improve.</p>"
+    notes: "<p><b>Noise (Friis):</b> F = F₁ + (F₂−1)/G₁ + (F₃−1)/(G₁G₂) + … (linear). T<sub>e</sub> = 290·(F−1). A passive/lossy stage at 290 K has NF = its loss (tick “Passive”; its gain must be ≤ 0). NF can’t be negative. Leave IP3/OP1dB blank for “ideal”; any other text must be a number.</p><p><b>IP3:</b> 1/IIP3 = 1/IIP3₁ + G₁/IIP3₂ + G₁G₂/IIP3₃ + … (mW). OIP3 = IIP3 + G<sub>total</sub>. Blank IP3 = ideal (ignored). Enter either OIP3 or IIP3 per stage.</p><p><b>P1dB:</b> stage input P1dB ≈ OP1dB − G + 1; cascaded the same way as IP3 (an estimate – compression doesn’t combine exactly like IP3).</p><p><b>Noise floor</b> = −174 + 10·log₁₀(B) + NF (input-referred). <b>MDS</b> = noise floor + required SNR. <b>SFDR</b> = ⅔·(IIP3 − noise floor) (Pozar). Some texts reference it to MDS instead: ⅔·(IIP3 − floor) − SNR<sub>min</sub>; both are shown.</p><p>Contribution columns show each stage’s share of the total excess noise (F−1) and of 1/IIP3 – the biggest number is the stage to improve.</p>"
   },
   /* 3 ------------------------------------------------------------------ */
   { id: "dish", icon: "🛰️", title: "Parabolic Dish", sub: "Gain, beamwidth, focal length, depth",
@@ -65,15 +65,15 @@
       inputs: [
         { id: "d", label: "Diameter", unit: LEN, def: 1.2, defUnit: "m" },
         { id: "f", label: "Frequency", unit: FREQ, def: 12, defUnit: "GHz" },
-        { id: "eff", label: "Aperture efficiency", u: "%", def: 65 },
-        { id: "fd", label: "F/D ratio", u: "", def: 0.4 }
+        { id: "eff", label: "Aperture efficiency", u: "%", def: 65, gt: 0, max: 100 },
+        { id: "fd", label: "F/D ratio", u: "", def: 0.4, gt: 0 }
       ],
       compute: function (v) {
         var r = R.dish({ dM: v.d, fHz: v.f, eff: v.eff / 100, fd: v.fd });
         return [
           o("Gain", r.gainDbi, "dBi", 2, { big: true }), o("Gain", r.gainDbi - 2.15, "dBd", 2),
-          o("3 dB beamwidth (≈70·λ/D)", r.bw3dBDeg, "°", 3), o("First null from boresight (1.22·λ/D)", r.firstNullDeg, "°", 3),
-          o("Null-to-null beamwidth", r.bwfnDeg, "°", 3), e("Wavelength", r.lambdaM, "m"),
+          o("3 dB beamwidth (≈70·λ/D, typical taper)", r.bw3dBDeg, "°", 3), o("First null, typical taper (1.635·λ/D rad)", r.firstNullDeg, "°", 3),
+          o("Null-to-null beamwidth, typical taper", r.bwfnDeg, "°", 3), o("First null, uniform illumination (1.22·λ/D rad, minimum)", r.firstNullUniformDeg, "°", 3), e("Wavelength", r.lambdaM, "m"),
           sec("Geometry"),
           e("Focal length f = F/D·D", r.focalM, "m"), o("Focal length", r.focalM / 0.0254, "in", 2),
           e("Dish depth c = D²/(16f)", r.depthM, "m"), o("Dish depth", r.depthM / 0.0254, "in", 2),
@@ -84,13 +84,13 @@
           o("Far-field distance 2D²/λ", r.farFieldM, "m", 1)
         ];
       },
-      notes: "<p>G = η·(π·D/λ)². Typical η: 50–70% (55% is a safe default for amateur/prime-focus dishes, 65–75% for good commercial offset dishes).</p><p>θ<sub>3dB</sub> ≈ 70·λ/D degrees (typical taper). Focal length f = (F/D)·D, depth c = D²/(16·f). Edge half-angle ψ₀ = 2·atan(1/(4·F/D)): choose a feed whose pattern is about −10 dB at ψ₀ (the space-loss taper adds to that). Far field begins near 2D²/λ.</p>"
+      notes: "<p>G = η·(π·D/λ)². Typical η: 50–70% (55% is a safe default for amateur/prime-focus dishes, 65–75% for good commercial offset dishes).</p><p>θ<sub>3dB</sub> ≈ 70·λ/D degrees and first null ≈ 1.635·λ/D rad (93.7·λ/D°), both for a typical tapered feed illumination (≈(1−r²) taper). Uniform illumination gives the narrowest possible null, 1.22·λ/D rad, shown for reference. Focal length f = (F/D)·D, depth c = D²/(16·f). Edge half-angle ψ₀ = 2·atan(1/(4·F/D)): choose a feed whose pattern is about −10 dB at ψ₀ (the space-loss taper adds to that). Far field begins near 2D²/λ.</p>"
     }, {
       id: "dishrev", title: "Diameter for a target gain",
       inputs: [
         { id: "g", label: "Target gain", u: "dBi", def: 30 },
         { id: "f", label: "Frequency", unit: FREQ, def: 5.8, defUnit: "GHz" },
-        { id: "eff", label: "Aperture efficiency", u: "%", def: 55 }
+        { id: "eff", label: "Aperture efficiency", u: "%", def: 55, gt: 0, max: 100 }
       ],
       compute: function (v) {
         var D = R.dishDiameterForGain(v.g, v.f, v.eff / 100), l = R.wavelength(v.f);
@@ -106,22 +106,22 @@
       id: "wire", title: "Dipole / vertical lengths",
       inputs: [
         { id: "f", label: "Frequency", unit: FREQ, def: 146, defUnit: "MHz" },
-        { id: "k", label: "Velocity / shortening factor", u: "", def: 0.95 }
+        { id: "k", label: "Dipole/vertical shortening factor", u: "", def: 0.95, gt: 0, max: 1 }
       ],
       compute: function (v) {
         var r = R.wireLengths(v.f, v.k);
         function both(l, m) { return [o(l, m, "m", 3), o(l, m / M_FT, "ft", 2), o(l, m / 0.0254, "in", 1)]; }
         return [e("Free-space wavelength", r.lambdaM, "m")].concat(
           [sec("½λ dipole (total)")], both("½λ", r.halfWaveM), [sec("¼λ vertical / dipole leg")], both("¼λ", r.quarterWaveM),
-          [sec("⅝λ vertical")], both("⅝λ", r.fiveEighthM), [sec("Full wave (loop)")], both("1λ", r.fullWaveM));
+          [sec("⅝λ vertical")], both("⅝λ", r.fiveEighthM), [sec("Full-wave loop (≈1005/f ft, no shortening factor)")], both("Loop", r.loopM));
       },
-      notes: "<p>L = n·λ·k with λ = c/f. Wire dipoles typically use k ≈ 0.95 (gives the classic 468/f<sub>MHz</sub> ft). Use the cable’s velocity factor for coax stubs/phasing lines. Always cut a little long and trim.</p>"
+      notes: "<p>L = n·λ·k with λ = c/f. Wire dipoles typically use k ≈ 0.95 (gives the classic 468/f<sub>MHz</sub> ft). Use the cable’s velocity factor for coax stubs/phasing lines. A resonant full-wave loop is <i>longer</i> than λ: ≈ 1005/f<sub>MHz</sub> ft (1.022·λ, ARRL Antenna Book), so the shortening factor is not applied to it. Always cut a little long and trim.</p>"
     }, {
       id: "ae", title: "Gain ↔ effective aperture",
       inputs: [
         { id: "mode", label: "Solve for", type: "select", def: "ae", options: [["ae", "Effective aperture from gain"], ["g", "Gain from effective aperture"]] },
         { id: "g", label: "Gain", u: "dBi", def: 20, show: function (v) { return v.mode === "ae"; } },
-        { id: "a", label: "Effective aperture", u: "m²", def: 0.1, show: function (v) { return v.mode === "g"; } },
+        { id: "a", label: "Effective aperture", u: "m²", def: 0.1, gt: 0, show: function (v) { return v.mode === "g"; } },
         { id: "f", label: "Frequency", unit: FREQ, def: 2.4, defUnit: "GHz" }
       ],
       compute: function (v) {
@@ -144,7 +144,7 @@
       id: "eirp", title: "EIRP / ERP",
       inputs: [
         { id: "p", label: "Transmitter power", unit: PWR, def: 100, defUnit: "W" },
-        { id: "l", label: "Feedline + connector loss", u: "dB", def: 2 },
+        { id: "l", label: "Feedline + connector loss", u: "dB", def: 2, min: 0 },
         { id: "g", label: "Antenna gain", u: "dBi", def: 8 }
       ],
       compute: function (v) {
@@ -158,7 +158,7 @@
         { id: "a", label: "Aperture width A (H-plane)", unit: LEN, def: 10, defUnit: "cm" },
         { id: "b", label: "Aperture height B (E-plane)", unit: LEN, def: 7.5, defUnit: "cm" },
         { id: "f", label: "Frequency", unit: FREQ, def: 10, defUnit: "GHz" },
-        { id: "eff", label: "Aperture efficiency", u: "%", def: 51 }
+        { id: "eff", label: "Aperture efficiency", u: "%", def: 51, gt: 0, max: 100 }
       ],
       compute: function (v) {
         var l = R.wavelength(v.f);
@@ -169,9 +169,9 @@
     }, {
       id: "bwg", title: "Gain from beamwidths",
       inputs: [
-        { id: "te", label: "E-plane 3 dB beamwidth", u: "°", def: 30 },
-        { id: "th", label: "H-plane 3 dB beamwidth", u: "°", def: 30 },
-        { id: "eff", label: "Efficiency", u: "%", def: 65 }
+        { id: "te", label: "E-plane 3 dB beamwidth", u: "°", def: 30, gt: 0, max: 360 },
+        { id: "th", label: "H-plane 3 dB beamwidth", u: "°", def: 30, gt: 0, max: 360 },
+        { id: "eff", label: "Efficiency", u: "%", def: 65, gt: 0, max: 100 }
       ],
       compute: function (v) {
         return [o("Gain", R.gainFromBeamwidths(v.te, v.th, v.eff / 100), "dBi", 2, { big: true }), o("Ideal (100%)", R.gainFromBeamwidths(v.te, v.th, 1), "dBi", 2)];
@@ -186,7 +186,7 @@
       inputs: [
         { id: "x", label: "Value", def: 0, u: "" },
         { id: "unit", label: "Unit", type: "select", def: "dBm", options: [["dBm", "dBm"], ["dBW", "dBW"], ["W", "W"], ["mW", "mW"], ["uW", "µW"], ["dBuV", "dBµV"], ["dBmV", "dBmV"], ["Vrms", "V rms"], ["Vpk", "V peak"], ["Vpp", "V peak-peak"]] },
-        { id: "z", label: "System impedance", u: "Ω", def: 50 }
+        { id: "z", label: "System impedance", u: "Ω", def: 50, gt: 0 }
       ],
       compute: function (v) {
         var dbm = R.toDbm(v.x, v.unit, v.z), p = R.powerAll(dbm, v.z);
@@ -202,7 +202,7 @@
         { id: "mode", label: "Convert", type: "select", def: "f2l", options: [["f2l", "Frequency → wavelength"], ["l2f", "Wavelength → frequency"]] },
         { id: "f", label: "Frequency", unit: FREQ, def: 146, defUnit: "MHz", show: function (v) { return v.mode === "f2l"; } },
         { id: "l", label: "Wavelength", unit: LEN, def: 2, defUnit: "m", show: function (v) { return v.mode === "l2f"; } },
-        { id: "vf", label: "Velocity factor", u: "", def: 1 }
+        { id: "vf", label: "Velocity factor", u: "", def: 1, gt: 0, max: 1 }
       ],
       compute: function (v) {
         if (v.mode === "f2l") { var l = R.wavelength(v.f, v.vf); return [e("Wavelength λ", l, "m", { big: true }), o("λ", l / M_FT, "ft", 3), e("λ/2", l / 2, "m"), e("λ/4", l / 4, "m")]; }
@@ -214,7 +214,7 @@
       inputs: [
         { id: "mode", label: "Convert", type: "select", def: "r2d", options: [["r2d", "Ratio → dB"], ["d2r", "dB → ratio"]] },
         { id: "kind", label: "Quantity", type: "select", def: "power", options: [["power", "Power (10·log)"], ["voltage", "Voltage/current (20·log)"]] },
-        { id: "r", label: "Ratio (out/in)", u: "×", def: 2, show: function (v) { return v.mode === "r2d"; } },
+        { id: "r", label: "Ratio (out/in)", u: "×", def: 2, gt: 0, show: function (v) { return v.mode === "r2d"; } },
         { id: "db", label: "dB", u: "dB", def: 3, show: function (v) { return v.mode === "d2r"; } }
       ],
       compute: function (v) {
@@ -230,21 +230,21 @@
       id: "vswr", title: "Mismatch calculator",
       inputs: [
         { id: "mode", label: "I know the", type: "select", def: "vswr", options: [["vswr", "VSWR"], ["rl", "Return loss"], ["g", "Reflection coefficient |Γ|"], ["p", "Forward & reflected power"], ["z", "Load impedance R + jX"]] },
-        { id: "s", label: "VSWR", u: ": 1", def: 2, show: function (v) { return v.mode === "vswr"; } },
-        { id: "rl", label: "Return loss", u: "dB", def: 14, show: function (v) { return v.mode === "rl"; } },
-        { id: "g", label: "|Γ|", u: "", def: 0.2, show: function (v) { return v.mode === "g"; } },
-        { id: "pf", label: "Forward power", u: "W", def: 100, show: function (v) { return v.mode === "p"; } },
-        { id: "pr", label: "Reflected power", u: "W", def: 5, show: function (v) { return v.mode === "p"; } },
-        { id: "r", label: "Load resistance R", u: "Ω", def: 75, show: function (v) { return v.mode === "z"; } },
+        { id: "s", label: "VSWR", u: ": 1", def: 2, min: 1, show: function (v) { return v.mode === "vswr"; } },
+        { id: "rl", label: "Return loss", u: "dB", def: 14, min: 0, show: function (v) { return v.mode === "rl"; } },
+        { id: "g", label: "|Γ|", u: "", def: 0.2, min: 0, max: 1, show: function (v) { return v.mode === "g"; } },
+        { id: "pf", label: "Forward power", u: "W", def: 100, gt: 0, show: function (v) { return v.mode === "p"; } },
+        { id: "pr", label: "Reflected power", u: "W", def: 5, min: 0, show: function (v) { return v.mode === "p"; } },
+        { id: "r", label: "Load resistance R", u: "Ω", def: 75, min: 0, show: function (v) { return v.mode === "z"; } },
         { id: "x", label: "Load reactance X (+ inductive)", u: "Ω", def: 25, show: function (v) { return v.mode === "z"; } },
-        { id: "z0", label: "Line impedance Z₀", u: "Ω", def: 50, show: function (v) { return v.mode === "z"; } }
+        { id: "z0", label: "Line impedance Z₀", u: "Ω", def: 50, gt: 0, show: function (v) { return v.mode === "z"; } }
       ],
       compute: function (v) {
         var r;
-        if (v.mode === "vswr") { if (v.s < 1) throw new Error("VSWR must be ≥ 1"); r = R.vswrFromVswr(v.s); }
+        if (v.mode === "vswr") r = R.vswrFromVswr(v.s);
         else if (v.mode === "rl") r = R.vswrFromRL(v.rl);
-        else if (v.mode === "g") { if (v.g < 0 || v.g > 1) throw new Error("|Γ| must be 0…1"); r = R.fromGamma(v.g); }
-        else if (v.mode === "p") { if (v.pr > v.pf) throw new Error("Reflected > forward"); r = R.vswrFromPower(v.pf, v.pr); }
+        else if (v.mode === "g") r = R.fromGamma(v.g);
+        else if (v.mode === "p") r = R.vswrFromPower(v.pf, v.pr);
         else r = R.vswrFromZ(v.r, v.x, v.z0);
         var out = [o("VSWR", r.vswr, ": 1", 3, { big: true, cls: r.vswr <= 1.5 ? "good" : r.vswr <= 2.5 ? "warn" : "bad" }),
           o("Return loss", r.returnLossDb, "dB", 2), o("|Γ|", r.gamma, "", 4), o("Mismatch loss", r.mismatchLossDb, "dB", 3),
@@ -262,12 +262,12 @@
       id: "coax", title: "Feedline loss",
       inputs: [
         { id: "cable", label: "Cable", type: "select", def: "lmr400", options: R.CABLES.map(function (c) { return [c.id, c.name]; }).concat([["custom", "Custom (enter k1, k2)"]]) },
-        { id: "k1", label: "k1 (√f term)", u: "", def: 0.12229, show: function (v) { return v.cable === "custom"; } },
-        { id: "k2", label: "k2 (f term)", u: "", def: 0.00026, show: function (v) { return v.cable === "custom"; } },
-        { id: "vf", label: "Velocity factor", u: "", def: 0.85, show: function (v) { return v.cable === "custom"; } },
-        { id: "len", label: "Length", unit: HGT, def: 100, defUnit: "ft" },
+        { id: "k1", label: "k1 (√f term)", u: "", def: 0.12229, min: 0, show: function (v) { return v.cable === "custom"; } },
+        { id: "k2", label: "k2 (f term)", u: "", def: 0.00026, min: 0, show: function (v) { return v.cable === "custom"; } },
+        { id: "vf", label: "Velocity factor", u: "", def: 0.85, gt: 0, max: 1, show: function (v) { return v.cable === "custom"; } },
+        { id: "len", label: "Length", unit: HGT, def: 100, defUnit: "ft", min: 0 },
         { id: "f", label: "Frequency", unit: FREQ, def: 146, defUnit: "MHz" },
-        { id: "pin", label: "Power in", u: "W", def: 100 }
+        { id: "pin", label: "Power in", u: "W", def: 100, min: 0 }
       ],
       compute: function (v) {
         var c = v.cable === "custom" ? { k1: v.k1, k2: v.k2, vf: v.vf, name: "Custom", src: "user" } : R.CABLES.filter(function (x) { return x.id === v.cable; })[0];
@@ -276,10 +276,10 @@
         return [o("Total loss", r.totalDb, "dB", 2, { big: true }), o("Power out", r.poutW, "W", 3), o("Power delivered", r.deliveredPct, "%", 1),
           o("Lost as heat", r.heatW, "W", 2), o("Loss per 100 ft", r.per100ftDb, "dB", 2), o("Loss per 100 m", r.per100mDb, "dB", 2),
           o("Velocity factor", r.vf, "", 2), o("Electrical length", r.electricalWavelengths, "λ", 3),
-          { note: "Coefficients: " + c.src + " (k1 " + c.k1 + ", k2 " + c.k2 + ")" },
+          { note: "Coefficients: " + c.src + " (" + (c.k0 ? "k0 " + c.k0 + ", " : "") + "k1 " + c.k1 + ", k2 " + c.k2 + "). Matched line, ~20–25 °C." },
           sec("All cables at this length & frequency"), { table: { head: ["Cable", "Loss dB", "Out W"], rows: rows } }];
       },
-      notes: "<p>Matched-line loss per 100 ft ≈ k1·√f<sub>MHz</sub> + k2·f<sub>MHz</sub> (conductor + dielectric loss). LMR values use Times Microwave’s published k1/k2. RG and Heliax values are least-squares fits to typical published attenuation tables and can be ±10–20% off for a given brand. Loss rises with VSWR, age and water ingress. Treat all values as approximate.</p>"
+      notes: "<p>Matched-line loss per 100 ft ≈ k1·√f<sub>MHz</sub> + k2·f<sub>MHz</sub> (conductor + dielectric loss). LMR values use Times Microwave’s published k1/k2. RG values are least-squares fits to the named Belden datasheets and Heliax to CommScope datasheets (RG-6 adds a small constant k0 for HF accuracy). Other brands of the same RG type can differ by 10–20%. Loss rises with VSWR, age and water ingress. Treat all values as approximate.</p>"
     }]
   },
   /* 8 ------------------------------------------------------------------ */
@@ -288,15 +288,16 @@
       id: "ktb", title: "Thermal noise floor",
       inputs: [
         { id: "bw", label: "Bandwidth", unit: BW, def: 1, defUnit: "MHz" },
-        { id: "t", label: "Temperature", u: "K", def: 290 },
-        { id: "nf", label: "Noise figure", u: "dB", def: 0 }
+        { id: "t", label: "Source / antenna temperature", u: "K", def: 290, min: 0 },
+        { id: "nf", label: "Receiver noise figure", u: "dB", def: 0, min: 0 }
       ],
       compute: function (v) {
-        var k = R.thermalNoiseDbm(v.bw, v.t);
-        return [o("Noise floor (kTB + NF)", k + v.nf, "dBm", 2, { big: true }), o("kTB", k, "dBm", 2), o("kT density", R.thermalNoiseDbm(1, v.t), "dBm/Hz", 2),
-          e("Noise power", R.dbmToW(k + v.nf), "W"), o("10·log₁₀(B)", R.dB(v.bw), "dB", 2)];
+        var n = R.systemNoise(v.bw, v.nf, v.t);
+        return [o("Noise floor N = k·(Tₛ+Tₑ)·B", n.noiseDbm, "dBm", 2, { big: true }), o("System noise temperature Tₛ + Tₑ", n.tsysK, "K", 1),
+          o("Receiver noise temperature Tₑ", n.teK, "K", 1), o("Source noise kTₛB", n.ktsbDbm, "dBm", 2), o("Noise density", n.densityDbmHz, "dBm/Hz", 2),
+          e("Noise power", R.dbmToW(n.noiseDbm), "W"), o("10·log₁₀(B)", R.dB(v.bw), "dB", 2)];
       },
-      notes: "<p>N = k·T·B; at 290 K this is −174 dBm/Hz + 10·log₁₀(B). Add the receiver NF for the effective noise floor.</p>"
+      notes: "<p>Noise figure is defined with a 290 K source, so for any source temperature Tₛ the receiver input noise is N = k·(Tₛ + Tₑ)·B with Tₑ = 290·(10<sup>NF/10</sup> − 1). At Tₛ = 290 K this equals −174 dBm/Hz + 10·log₁₀(B) + NF. Adding NF in dB to kTₛB is only correct at 290 K. Use a low Tₛ for a sky-pointing antenna (e.g. 30–100 K).</p>"
     }, {
       id: "nft", title: "Noise figure ↔ temperature ↔ factor",
       inputs: [
@@ -339,9 +340,9 @@
     cards: [{
       id: "hor", title: "Radio horizon",
       inputs: [
-        { id: "h1", label: "Antenna 1 height", unit: HGT, def: 30, defUnit: "m" },
-        { id: "h2", label: "Antenna 2 height", unit: HGT, def: 10, defUnit: "m" },
-        { id: "k", label: "Earth radius factor k", u: "", def: 1.3333 }
+        { id: "h1", label: "Antenna 1 height", unit: HGT, def: 30, defUnit: "m", min: 0 },
+        { id: "h2", label: "Antenna 2 height", unit: HGT, def: 10, defUnit: "m", min: 0 },
+        { id: "k", label: "Earth radius factor k", u: "", def: "4/3", gt: 0 }
       ],
       compute: function (v) {
         var a = R.radioHorizonKm(v.h1, v.k), b = R.radioHorizonKm(v.h2, v.k);
@@ -349,14 +350,14 @@
           o("Horizon antenna 1", a, "km", 2), o("Horizon antenna 2", b, "km", 2),
           o("Optical (k = 1) total", R.radioHorizonKm(v.h1, 1) + R.radioHorizonKm(v.h2, 1), "km", 2)];
       },
-      notes: "<p>d = √(2·k·R·h) for each antenna, R = 6371 km. Standard atmosphere k = 4/3 gives d<sub>km</sub> ≈ 4.12·√h<sub>m</sub> (≈ 1.41·√h<sub>ft</sub> miles). Smooth earth, no terrain.</p>"
+      notes: "<p>d = √(2·k·R·h) for each antenna, R = 6371 km. Standard atmosphere k = 4/3 (median). For clearance planning also check a worst-case k (often ≈ 2/3, ITU-R P.530); you can type fractions such as 2/3. gives d<sub>km</sub> ≈ 4.12·√h<sub>m</sub> (≈ 1.41·√h<sub>ft</sub> miles). Smooth earth, no terrain.</p>"
     }, {
       id: "bulge", title: "Earth bulge & Fresnel at a point",
       inputs: [
         { id: "d", label: "Total path length", unit: DIST, def: 30, defUnit: "km" },
         { id: "d1", label: "Distance from Tx to obstacle", unit: DIST, def: 15, defUnit: "km" },
         { id: "f", label: "Frequency", unit: FREQ, def: 5.8, defUnit: "GHz" },
-        { id: "k", label: "Earth radius factor k", u: "", def: 1.3333 }
+        { id: "k", label: "Earth radius factor k", u: "", def: "4/3", gt: 0 }
       ],
       compute: function (v) {
         if (v.d1 >= v.d || v.d1 <= 0) throw new Error("Obstacle must be between the ends");
@@ -369,8 +370,8 @@
       id: "tworay", title: "Two-ray (plane-earth) path loss",
       inputs: [
         { id: "d", label: "Distance", unit: DIST, def: 5, defUnit: "km" },
-        { id: "ht", label: "Tx antenna height", unit: HGT, def: 30, defUnit: "m" },
-        { id: "hr", label: "Rx antenna height", unit: HGT, def: 2, defUnit: "m" },
+        { id: "ht", label: "Tx antenna height", unit: HGT, def: 30, defUnit: "m", gt: 0 },
+        { id: "hr", label: "Rx antenna height", unit: HGT, def: 2, defUnit: "m", gt: 0 },
         { id: "f", label: "Frequency", unit: FREQ, def: 900, defUnit: "MHz" }
       ],
       compute: function (v) {
@@ -379,7 +380,7 @@
         return [o("Estimated path loss", est, "dB", 2, { big: true }), o("Two-ray loss", tr, "dB", 2), o("Free-space loss", fs, "dB", 2),
           o("Crossover distance 4π·hₜ·hᵣ/λ", dc / 1000, "km", 3), { note: v.d > dc ? "Beyond crossover: two-ray (40 dB/decade) applies." : "Inside crossover: use free-space loss (two-ray model not valid here)." }];
       },
-      notes: "<p>L = 40·log₁₀(d) − 20·log₁₀(hₜ·hᵣ) (d, h in metres; independent of frequency). Valid beyond the crossover distance; closer in, use FSPL.</p>"
+      notes: "<p>L = 40·log₁₀(d) − 20·log₁₀(hₜ·hᵣ) (d, h in metres; independent of frequency). Valid beyond the crossover distance; closer in, use FSPL. Assumes flat, perfectly reflecting ground (Γ = −1) and antenna heights ≪ distance.</p>"
     }, {
       id: "nff", title: "Near field / far field",
       inputs: [
@@ -399,11 +400,10 @@
     cards: [{
       id: "pad", title: "Pi and T attenuator pads",
       inputs: [
-        { id: "db", label: "Attenuation", u: "dB", def: 10 },
-        { id: "z0", label: "Impedance Z₀", u: "Ω", def: 50 }
+        { id: "db", label: "Attenuation", u: "dB", def: 10, gt: 0 },
+        { id: "z0", label: "Impedance Z₀", u: "Ω", def: 50, gt: 0 }
       ],
       compute: function (v) {
-        if (v.db <= 0) throw new Error("Attenuation must be > 0");
         var p = R.piPad(v.db, v.z0), t = R.tPad(v.db, v.z0);
         return [sec("Pi pad (shunt – series – shunt)"), o("Shunt resistors (×2)", p.shunt, "Ω", 2, { big: true }), o("Series resistor", p.series, "Ω", 2),
           sec("T pad (series – shunt – series)"), o("Series resistors (×2)", t.series, "Ω", 2, { big: true }), o("Shunt resistor", t.shunt, "Ω", 2)];
@@ -412,8 +412,8 @@
     }, {
       id: "lnet", title: "L-network match (resistive)",
       inputs: [
-        { id: "rs", label: "Source resistance", u: "Ω", def: 50 },
-        { id: "rl", label: "Load resistance", u: "Ω", def: 200 },
+        { id: "rs", label: "Source resistance", u: "Ω", def: 50, gt: 0 },
+        { id: "rl", label: "Load resistance", u: "Ω", def: 200, gt: 0 },
         { id: "f", label: "Frequency", unit: FREQ, def: 14.2, defUnit: "MHz" }
       ],
       compute: function (v) {
@@ -424,9 +424,10 @@
           { note: "Shunt element goes " + where + "." },
           sec("Low-pass: series L, shunt C"), e("Series L", r.lowpass.seriesL, "H"), e("Shunt C", r.lowpass.shuntC, "F"),
           sec("High-pass: series C, shunt L"), e("Series C", r.highpass.seriesC, "F"), e("Shunt L", r.highpass.shuntL, "H"),
-          e("Approx. bandwidth f/Q", r.bandwidthHz, "Hz")];
+          e("Approx. −3 dB bandwidth 2f/Q (loaded Q = Q/2)", r.bandwidthHz, "Hz"), o("Loaded Q", r.loadedQ, "", 2),
+          { note: r.bandwidthValid ? "Bandwidth estimate assumes a matched source (loaded Q = Q/2)." : "Q < 3: the bandwidth estimate isn’t meaningful (a low-pass L passes down to DC); treat the network as broadband." }];
       },
-      notes: "<p>Q = √(R<sub>high</sub>/R<sub>low</sub> − 1). X<sub>series</sub> = Q·R<sub>low</sub>, X<sub>shunt</sub> = R<sub>high</sub>/Q. The shunt element sits on the high-resistance side. For complex loads, absorb or cancel the reactance first.</p>"
+      notes: "<p>Q = √(R<sub>high</sub>/R<sub>low</sub> − 1). X<sub>series</sub> = Q·R<sub>low</sub>, X<sub>shunt</sub> = R<sub>high</sub>/Q. The shunt element sits on the high-resistance side. Driven from a matched source the loaded Q is Q/2, so the −3 dB bandwidth ≈ 2f/Q (valid for Q ≳ 3). For complex loads, absorb or cancel the reactance first.</p>"
     }]
   },
   /* 11 ----------------------------------------------------------------- */
@@ -461,7 +462,7 @@
       inputs: [
         { id: "f", label: "Frequency", unit: FREQ, def: 14, defUnit: "MHz" },
         { id: "metal", label: "Conductor", type: "select", def: "copper", options: [["copper", "Copper"], ["silver", "Silver"], ["gold", "Gold"], ["aluminum", "Aluminum"], ["brass", "Brass"], ["steel_stainless", "Stainless steel"]] },
-        { id: "mur", label: "Relative permeability µr", u: "", def: 1 }
+        { id: "mur", label: "Relative permeability µr", u: "", def: 1, gt: 0 }
       ],
       compute: function (v) {
         var d = R.skinDepth(v.f, R.METALS[v.metal], v.mur);
@@ -473,26 +474,26 @@
       inputs: [
         { id: "w", label: "Trace width W", unit: "pcb", def: 3, defUnit: "mm" },
         { id: "h", label: "Substrate height H", unit: "pcb", def: 1.6, defUnit: "mm" },
-        { id: "er", label: "Dielectric constant εr", u: "", def: 4.4 }
+        { id: "er", label: "Dielectric constant εr", u: "", def: 4.4, min: 1 }
       ],
       compute: function (v) {
         var r = R.microstrip(v.w, v.h, v.er);
         return [o("Z₀", r.z0, "Ω", 2, { big: true }), o("Effective εr", r.eeff, "", 3), o("W/H", r.wh, "", 3), o("Velocity factor", r.vf, "", 3),
           e("Guided λ at 1 GHz", R.wavelength(1e9, r.vf), "m")];
       },
-      notes: "<p>Hammerstad/Wheeler closed forms, zero-thickness copper, no dispersion. u = W/H.<br>ε<sub>eff</sub> = (εr+1)/2 + (εr−1)/2·[(1+12/u)<sup>−½</sup> (+0.04(1−u)² if u&lt;1)].<br>u ≤ 1: Z₀ = 60/√ε<sub>eff</sub>·ln(8/u + u/4). u ≥ 1: Z₀ = 120π/(√ε<sub>eff</sub>·(u + 1.393 + 0.667·ln(u + 1.444))). Accuracy about ±1–2%; verify with a field solver for production boards.</p>"
+      notes: "<p>Hammerstad (1975) closed forms as in Pozar §3.8, zero-thickness copper, no dispersion. u = W/H.<br>ε<sub>eff</sub> = (εr+1)/2 + (εr−1)/2·[(1+12/u)<sup>−½</sup> (+0.04(1−u)² if u&lt;1)].<br>u ≤ 1: Z₀ = 60/√ε<sub>eff</sub>·ln(8/u + u/4). u ≥ 1: Z₀ = 120π/(√ε<sub>eff</sub>·(u + 1.393 + 0.667·ln(u + 1.444))). Accuracy about ±1–2%; verify with a field solver for production boards.</p>"
     }, {
       id: "msw", title: "Microstrip width for a target Z₀",
       inputs: [
-        { id: "z", label: "Target Z₀", u: "Ω", def: 50 },
+        { id: "z", label: "Target Z₀", u: "Ω", def: 50, gt: 0 },
         { id: "h", label: "Substrate height H", unit: "pcb", def: 1.6, defUnit: "mm" },
-        { id: "er", label: "Dielectric constant εr", u: "", def: 4.4 }
+        { id: "er", label: "Dielectric constant εr", u: "", def: 4.4, min: 1 }
       ],
       compute: function (v) {
         var wh = R.microstripWidth(v.z, v.er), w = wh * v.h, chk = R.microstrip(w, v.h, v.er);
         return [e("Trace width W", w, "m", { big: true }), o("Width", w / 2.54e-5, "mil", 1), o("W/H", wh, "", 3), o("Check: analysis Z₀", chk.z0, "Ω", 2)];
       },
-      notes: "<p>Wheeler synthesis equations (A form for W/H &lt; 2, B form for W/H &gt; 2).</p>"
+      notes: "<p>Wheeler synthesis (Pozar eq. 3.197): the A form is used when it gives 0 &lt; W/H ≤ 2, otherwise the B form. Targets the formulas can’t reach show an error.</p>"
     }]
   }];
 

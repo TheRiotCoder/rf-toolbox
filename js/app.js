@@ -3,7 +3,6 @@
   "use strict";
   var R = window.RF, TOOLS = window.RFTools.TOOLS;
   var $ = function (s, el) { return (el || document).querySelector(s); };
-  var VERSION = "1.0.0";
   var UNITS = {
     freq: [["Hz", 1], ["kHz", 1e3], ["MHz", 1e6], ["GHz", 1e9]],
     bw: [["Hz", 1], ["kHz", 1e3], ["MHz", 1e6], ["GHz", 1e9]],
@@ -16,6 +15,28 @@
     cap: [["pF", 1e-12], ["nF", 1e-9], ["µF", 1e-6], ["F", 1]],
     power: [["dBm"], ["W"], ["mW"], ["dBW"], ["kW"]]
   };
+  var POSITIVE_KINDS = { freq: 1, bw: 1, dist: 1, len: 1, pcb: 1, rate: 1, ind: 1, cap: 1 };
+  // number parser: accepts "," decimal, unicode minus and simple fractions like "4/3"
+  function parseNum(text) {
+    var t = String(text).trim().replace(",", ".").replace(/\u2212/g, "-");
+    if (t === "") return NaN;
+    var m = t.match(/^(-?\d*\.?\d+)\s*\/\s*(\d*\.?\d+)$/);
+    if (m) return Number(m[1]) / Number(m[2]);
+    return /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(t) ? Number(t) : NaN;
+  }
+  // returns an error message if the (entered, pre-unit) value violates the input's declared range
+  function rangeError(inp, n) {
+    var gt = inp.gt !== undefined ? inp.gt : (POSITIVE_KINDS[inp.unit] && inp.min === undefined ? 0 : undefined);
+    var min = inp.min !== undefined ? inp.min : (inp.unit === "height" ? 0 : undefined);
+    var u = inp.u && /^[%°]|^dB|^Ω|^K$|^W$/.test(inp.u) ? (inp.u === "%" || inp.u === "°" ? inp.u : " " + inp.u) : "";
+    if (gt !== undefined && !(n > gt)) return inp.label + " must be greater than " + gt + u;
+    if (min !== undefined && n < min) return inp.label + " must be " + min + u + " or more";
+    if (inp.max !== undefined && n > inp.max) return inp.label + " must be " + inp.max + u + " or less";
+    return null;
+  }
+  function hasBadNumber(list) {
+    return list.some(function (o) { return !o.section && !o.note && !o.table && (typeof o.v !== "number" || isNaN(o.v)); });
+  }
   function toBase(val, kind, unit) {
     if (kind === "power") return R.toDbm(val, unit);
     var row = UNITS[kind].filter(function (r) { return r[0] === unit; })[0];
@@ -36,7 +57,7 @@
     if (v === Infinity) return "∞"; if (v === -Infinity) return "−∞";
     if (typeof v !== "number" || isNaN(v)) return "—";
     var a = Math.abs(v);
-    if (a !== 0 && (a >= 1e7 || a < Math.pow(10, -Math.max(d, 1)) )) return v.toPrecision(4).replace("e+", "e");
+    if (a !== 0 && (a >= 1e7 || a < Math.pow(10, -Math.max(d, 1)) )) return v.toPrecision(4).replace("e+", "e").replace(/-/g, "−");
     return v.toFixed(d).replace(/^-/, "−");
   }
   function fmtEng(v, unit) {
@@ -87,12 +108,13 @@
   function renderAbout() {
     document.title = "About – RF Toolbox"; titleEl.textContent = "About"; backBtn.hidden = false;
     var installed = isStandalone();
-    main.innerHTML = '<section class="card"><h2>RF Toolbox ' + VERSION + '</h2><p>Quick RF engineering calculators that work offline once loaded. Your last inputs are saved on this device only. Nothing is sent anywhere.</p>' +
+    main.innerHTML = '<section class="card"><h2>RF Toolbox <span id="appVer" class="muted"></span></h2><p>Quick RF engineering calculators that work offline once loaded. Your last inputs are saved on this device only. Nothing is sent anywhere.</p>' +
       (installed ? '<p class="good-text">Installed as an app ✔</p>' : '<button class="btn primary block" id="aboutInstall">Install RF Toolbox</button>') +
       '<h3>iPhone / iPad</h3><ol><li>Open this page in <b>Safari</b>.</li><li>Tap <b>Share</b> (square with arrow).</li><li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>' +
       '<h3>Android</h3><ol><li>Open in <b>Chrome</b>.</li><li>Tap <b>Install</b> when offered, or <b>⋮ → Install app / Add to Home screen</b>.</li></ol>' +
       '<h3>Disclaimer</h3><p>All results are engineering estimates based on standard textbook formulas and typical published data (e.g. cable coefficients). They are not a substitute for measurement or professional design review.</p>' +
       '<p><button class="btn" id="clearAll">Reset all saved inputs</button></p></section>';
+    if (window.caches) caches.keys().then(function (k) { var v = k.filter(function (x) { return x.indexOf("rftoolbox-v") === 0; }).sort().pop(); if (v && $("#appVer")) $("#appVer").textContent = v.replace("rftoolbox-", ""); }).catch(function () {});
     var ib = $("#aboutInstall"); if (ib) ib.onclick = install.prompt;
     $("#clearAll").onclick = function () {
       if (!confirm("Reset all saved inputs to defaults?")) return;
@@ -139,19 +161,22 @@
     el.innerHTML = html;
 
     function read() {
-      var raw = {}, vals = {}, st = {}, bad = [];
+      var raw = {}, vals = {}, st = {}, bad = [], rangeBad = [];
       card.inputs.forEach(function (inp) {
         if (inp.h) return;
         var f = el.querySelector('.field[data-id="' + inp.id + '"]'), ctl = f.querySelector(".inp");
         if (inp.type === "select") { vals[inp.id] = ctl.value; st[inp.id] = { v: ctl.value }; raw[inp.id] = ctl.options[ctl.selectedIndex].text; return; }
         var us = f.querySelector(".unit"), unit = us ? us.value : (inp.u || "");
-        var txt = ctl.value.trim().replace(",", ".").replace("−", "-"), n = txt === "" ? NaN : Number(txt);
+        var n = parseNum(ctl.value);
         st[inp.id] = { v: ctl.value, u: us ? us.value : undefined };
         raw[inp.id] = ctl.value + (unit ? " " + unit : "");
-        vals[inp.id] = inp.unit ? toBase(n, inp.unit, unit) : n;
-        if (!isFinite(n)) bad.push(inp);
+        if (!isFinite(n)) { bad.push(inp); vals[inp.id] = NaN; return; }
+        var re = rangeError(inp, n);
+        if (!re && inp.unit) { try { vals[inp.id] = toBase(n, inp.unit, unit); } catch (err) { re = err.message; } }
+        else vals[inp.id] = inp.unit ? NaN : n;
+        if (re) rangeBad.push({ inp: inp, msg: re });
       });
-      return { vals: vals, st: st, raw: raw, bad: bad };
+      return { vals: vals, st: st, raw: raw, bad: bad, rangeBad: rangeBad };
     }
     var lastOut = [];
     function update() {
@@ -161,12 +186,23 @@
         if (inp.h || !inp.show) return;
         var f = el.querySelector('.field[data-id="' + inp.id + '"]'); f.hidden = !inp.show(r.vals);
       });
-      var visibleBad = r.bad.filter(function (inp) { return !inp.show || inp.show(r.vals); });
-      el.querySelectorAll(".field").forEach(function (f) { f.classList.toggle("invalid", visibleBad.some(function (b) { return b.id === f.getAttribute("data-id"); })); });
+      var vis = function (inp) { return !inp.show || inp.show(r.vals); };
+      var visibleBad = r.bad.filter(vis), visibleRange = r.rangeBad.filter(function (x) { return vis(x.inp); });
+      var badIds = visibleBad.map(function (b) { return b.id; }).concat(visibleRange.map(function (x) { return x.inp.id; }));
+      el.querySelectorAll(".field").forEach(function (f) { f.classList.toggle("invalid", badIds.indexOf(f.getAttribute("data-id")) >= 0); });
       var box = el.querySelector(".results");
-      if (visibleBad.length) { box.innerHTML = '<div class="err">Enter a number for: ' + visibleBad.map(function (b) { return esc(b.label); }).join(", ") + '</div>'; lastOut = []; return; }
-      try { lastOut = card.compute(r.vals) || []; box.innerHTML = renderOutputs(lastOut); }
-      catch (err) { lastOut = []; box.innerHTML = '<div class="err">' + esc(err.message || "Check inputs") + '</div>'; }
+      if (visibleBad.length || visibleRange.length) {
+        var msgs = [];
+        if (visibleBad.length) msgs.push("Enter a number for: " + visibleBad.map(function (b) { return b.label; }).join(", "));
+        visibleRange.forEach(function (x) { msgs.push(x.msg); });
+        box.innerHTML = '<div class="err">⚠️ ' + msgs.map(esc).join("<br>") + '</div>'; lastOut = []; return;
+      }
+      try {
+        lastOut = card.compute(r.vals) || [];
+        if (hasBadNumber(lastOut)) { lastOut = []; throw new Error("These inputs are outside the valid range for this calculation"); }
+        box.innerHTML = renderOutputs(lastOut);
+      }
+      catch (err) { lastOut = []; box.innerHTML = '<div class="err">⚠️ ' + esc(err.message || "Check inputs") + '</div>'; }
     }
     el.addEventListener("input", update);
     el.addEventListener("change", update);
@@ -247,15 +283,16 @@
       return '<label class="sf"><span>' + label + '</span><span class="ctl"><input class="inp" data-k="' + k + '" inputmode="decimal" value="' + esc(v) + '"' + (disabled ? " disabled" : "") + (ph ? ' placeholder="' + ph + '"' : "") + '>' +
         (neg && !disabled ? '<button type="button" class="pm" tabindex="-1">±</button>' : '') + '</span></label>';
     }
-    function nz(x) { var t = String(x).trim().replace(",", ".").replace("−", "-"); return t === "" ? "" : Number(t); }
     function calc() {
-      var stages = st.stages.map(function (s) { return { name: s.name, gain: nz(s.gain), nf: s.passive ? -nz(s.gain) : nz(s.nf), ip3: nz(s.ip3), ip3Type: s.ip3Type, p1db: nz(s.p1db) }; });
+      var stages = st.stages.map(function (s) { return { name: s.name, gain: s.gain, nf: s.nf, ip3: s.ip3, ip3Type: s.ip3Type, p1db: s.p1db, passive: !!s.passive }; });
       var box = el.querySelector(".results");
-      var bad = stages.some(function (s) { return s.gain === "" || isNaN(s.gain) || s.nf === "" || isNaN(s.nf); });
-      if (!stages.length) { box.innerHTML = '<div class="err">Add at least one stage.</div>'; lastRes = null; return; }
-      if (bad) { box.innerHTML = '<div class="err">Each stage needs a gain and NF.</div>'; lastRes = null; return; }
-      var bw = Number(String(st.bw).replace(",", ".")) * UNITS.bw.filter(function (u) { return u[0] === st.bwu; })[0][1];
-      var r = R.cascade(stages, { bwHz: bw > 0 ? bw : 0, snrReq: Number(nz(st.snr)) || 0 });
+      var bw = parseNum(st.bw) * UNITS.bw.filter(function (u) { return u[0] === st.bwu; })[0][1], snr = parseNum(st.snr);
+      var r;
+      try {
+        if (!(bw > 0)) throw new Error("Noise bandwidth must be greater than 0");
+        if (!isFinite(snr)) throw new Error("Enter a number for the required SNR");
+        r = R.cascade(stages, { bwHz: bw, snrReq: snr });
+      } catch (err) { box.innerHTML = '<div class="err">⚠️ ' + esc(err.message) + '</div>'; box._out = []; lastRes = null; return; }
       lastRes = r;
       var out = [
         { l: "Cascaded noise figure", v: r.nfDb, u: "dB", d: 2, big: true }, { l: "Total gain", v: r.gainDb, u: "dB", d: 2, big: true },
@@ -264,7 +301,7 @@
       ];
       if (bw > 0) out.push({ section: "System (" + fmtEng(bw, "Hz") + " bandwidth)" },
         { l: "Noise floor (input-referred)", v: r.noiseFloorInDbm, u: "dBm", d: 2 }, { l: "Noise floor at output", v: r.noiseFloorOutDbm, u: "dBm", d: 2 },
-        { l: "MDS (floor + req. SNR)", v: r.mdsDbm, u: "dBm", d: 2 }, { l: "SFDR", v: r.sfdrDb, u: "dB", d: 1 }, { l: "Compression dynamic range (IP1dB − floor)", v: r.cdrDb, u: "dB", d: 1 });
+        { l: "MDS (floor + req. SNR)", v: r.mdsDbm, u: "dBm", d: 2 }, { l: "SFDR (re noise floor)", v: r.sfdrDb, u: "dB", d: 1 }, { l: "SFDR (re MDS)", v: r.sfdrMdsDb, u: "dB", d: 1 }, { l: "Compression dynamic range (IP1dB − floor)", v: r.cdrDb, u: "dB", d: 1 });
       out.push({ section: "Per-stage (cumulative at stage output)" }, { table: { head: ["#", "Stage", "Cum G", "Cum NF", "NF share", "Cum IIP3", "Cum OIP3", "IP3 share"],
         rows: r.rows.map(function (x, i) { return [String(i + 1), x.name, fmtNum(x.cumGain, 1), fmtNum(x.cumNf, 2), fmtNum(x.nfContribPct, 1) + "%", fmtNum(x.cumIip3, 1), fmtNum(x.cumOip3, 1), fmtNum(x.ip3ContribPct, 1) + "%"]; }) } });
       box.innerHTML = renderOutputs(out);
